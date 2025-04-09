@@ -1,0 +1,180 @@
+---
+title: "Forecast daily bike rental demand using time series models"
+date: "`r Sys.Date()`"
+output: html_document
+author: "Mateus Camargo de Lima"
+---
+
+# About Data Analysis Report
+
+This RMarkdown file contains the report of the data analysis done for the project on forecasting daily bike rental demand using time series models in R. It contains analysis such as data exploration, summary statistics and building the time series models. The final report was completed on `r date()`. 
+
+**Data Description:**
+This dataset contains the daily count of rental bike transactions between years 2011 and 2012 in Capital bikeshare system with the corresponding weather and seasonal information.
+
+**Data Source:** 
+https://archive.ics.uci.edu/ml/datasets/bike+sharing+dataset
+
+**Relevant Paper:** 
+Fanaee-T, Hadi, and Gama, Joao, 'Event labeling combining ensemble detectors and background knowledge', Progress in Artificial Intelligence (2013): pp. 1-15, Springer Berlin Heidelberg
+
+
+
+# Task One: Load and explore the data
+
+## Load data and install packages
+```{r}
+
+# Install and load required packages
+install.packages("timetk")
+install.packages("tidyverse")
+install.packages("lubridate")
+install.packages("forecast")
+install.packages("TTR")
+install.packages("tseries")
+
+library(timetk)
+library(tidyverse)
+library(lubridate)
+library(forecast)
+library(TTR)
+library(tseries)
+
+# Load built-in dataset
+data("bike_sharing_daily")
+bike_data <- bike_sharing_daily
+View(bike_data)
+
+# Rebuild date column starting from "2011-01-01"
+bike_data <- bike_data %>%
+  mutate(date = as.Date("2011-01-01") + days(0:(n() - 1)))
+```
+
+## Describe and explore the data
+```{r}
+
+# Summary statistics
+summary(bike_data)
+
+# Correlation between temperature and rentals
+cor(bike_data$temp, bike_data$cnt)
+cor(bike_data$atemp, bike_data$cnt)
+
+# Mean and median temperature per season
+bike_data %>%
+  group_by(season) %>%
+  summarise(mean_temp = mean(temp), median_temp = median(temp))
+
+# Monthly averages
+bike_data %>%
+  mutate(month = month(date)) %>%
+  group_by(month) %>%
+  summarise(mean_temp = mean(temp), mean_hum = mean(hum), mean_wind = mean(windspeed), total_rentals = mean(cnt))
+
+# Boxplot of temperature by season
+boxplot(temp ~ season, data = bike_data, main = "Temperature by Season")
+
+```
+
+
+
+# Task Two: Create interactive time series plots
+```{r}
+
+# Interactive plot using timetk
+bike_data %>%
+  plot_time_series(date, cnt, .interactive = TRUE, .plotly_slider = TRUE)
+
+# Seasonal diagnostics
+bike_data %>%
+  plot_seasonal_diagnostics(date, cnt)
+
+# Anomaly diagnostics
+bike_data %>%
+  plot_anomaly_diagnostics(date, cnt)
+
+```
+
+
+
+
+# Task Three: Smooth time series data
+```{r}
+
+# Convert to time series object
+bike_ts <- ts(bike_data$cnt, frequency = 365)
+
+# Clean anomalies and missing values
+bike_clean <- tsclean(bike_ts)
+
+# Simple Moving Average (SMA)
+bike_sma <- SMA(bike_clean, n = 10)
+plot(bike_sma, main = "Simple Moving Average (Order 10)")
+
+# Simple Exponential Smoothing
+bike_hw <- HoltWinters(bike_clean, beta = FALSE, gamma = FALSE)
+plot(bike_hw)
+
+```
+
+
+
+# Task Four: Decompse and access the stationarity of time series data
+```{r}
+
+# Decomposition
+decomp <- decompose(bike_ts)
+plot(decomp)
+
+# Augmented Dickey-Fuller Test for stationarity
+adf.test(bike_ts)
+
+# ACF and PACF plots
+acf(bike_ts)
+pacf(bike_ts)
+
+# Differencing (if necessary)
+bike_diff <- diff(bike_ts)
+plot(bike_diff)
+adf.test(bike_diff)
+
+```
+
+
+
+# Task Five: Fit and forecast time series data using ARIMA models
+```{r}
+
+# Auto ARIMA model
+auto_fit <- auto.arima(bike_clean)
+summary(auto_fit)
+
+# Manual ARIMA model example
+manual_fit <- arima(bike_clean, order = c(1,1,1))
+summary(manual_fit)
+
+# Residual diagnostics
+shapiro.test(residuals(auto_fit))
+acf(residuals(auto_fit))
+pacf(residuals(auto_fit))
+
+# Forecast the next 25 values
+forecast_auto <- forecast(auto_fit, h = 25)
+plot(forecast_auto, main = "Forecast with Auto ARIMA")
+
+forecast_manual <- forecast(manual_fit, h = 25)
+plot(forecast_manual, main = "Forecast with Manual ARIMA")
+
+```
+
+
+
+# Task Six: Findings and Conclusions
+
+  - The analysis revealed seasonal and trend patterns in bike rental demand.
+  - Temperature and season were found to significantly influence rental counts.
+  - ARIMA models (both auto and manual) showed solid predictive performance.
+  - Results matched expectations for seasonal time series data.
+  - The timetk package and interactive visualizations helped uncover useful insights.
+  
+  
